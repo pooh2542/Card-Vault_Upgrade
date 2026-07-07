@@ -1,0 +1,37 @@
+{
+  "name": "CardVault Pro - จัดการคลังการ์ดสะสม",
+  "short_name": "CardVault",
+  "description": "แอปจัดการคลังการ์ดเทรดดิ้งการ์ด บันทึกต้นทุน ราคาขาย และกำไร พร้อมใช้งานได้แม้ออฟไลน์",
+  "id": "/",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#f9fafb",
+  "theme_color": "#000000",
+  "lang": "th",
+  "dir": "ltr",
+  "categories": ["finance", "productivity", "shopping"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "เพิ่มการ์ดใหม่",
+      "short_name": "เพิ่มการ์ด",
+      "description": "เพิ่มการ์ดเข้าคลังอย่างรวดเร็ว",
+      "url": "./index.html?tab=add",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "ดูคลังการ์ด",
+      "short_name": "คลังการ์ด",
+      "description": "ดูรายการการ์ดที่มีในสต็อก",
+      "url": "./index.html?tab=inventory",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

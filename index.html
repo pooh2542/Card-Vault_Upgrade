@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>CardVault Pro</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CardVault">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000000">
+    <meta name="description" content="แอปจัดการคลังการ์ดเทรดดิ้งการ์ด บันทึกต้นทุน ราคาขาย และกำไร ใช้งานได้แม้ออฟไลน์">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="manifest" href="manifest.json">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        select, input[type="date"], input[type="search"] {
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em;
+        }
+        input[type="search"] { background-image: none; }
+        input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0; width: 100%; height: 100%; position: absolute; top: 0; left: 0; cursor: pointer; }
+        .date-wrapper { position: relative; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 pb-32 min-h-[100dvh]">
+
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-gray-100 px-6 py-5 pt-12">
+        <h1 class="text-2xl font-semibold tracking-tight text-center" id="header-title">Overview</h1>
+    </header>
+
+    <main class="px-6 py-6 relative z-10">
+
+        <div id="app-banner" class="hidden bg-black text-white rounded-2xl shadow-lg px-4 py-3 mb-4 items-center justify-between gap-3">
+            <p id="app-banner-text" class="text-xs font-medium leading-snug flex-1"></p>
+            <div class="flex items-center gap-2 shrink-0">
+                <button id="app-banner-action" class="bg-white text-black text-xs font-semibold px-3 py-1.5 rounded-lg active:scale-95 transition-transform cursor-pointer"></button>
+                <button id="app-banner-dismiss" onclick="dismissAppBanner()" class="text-gray-400 hover:text-white text-lg leading-none px-1 cursor-pointer">×</button>
+            </div>
+        </div>
+
+        <div id="offline-pill" class="hidden bg-amber-50 text-amber-700 border border-amber-100 rounded-2xl px-4 py-2.5 mb-4 text-xs font-medium text-center">
+            📡 ออฟไลน์อยู่ — ข้อมูลยังใช้งานและบันทึกในเครื่องได้ตามปกติ
+        </div>
+
+        <section id="tab-dashboard" class="tab-content active">
+            <div class="mb-4">
+                <select id="month-filter" onchange="changeMonthFilter()" class="w-full bg-white shadow-sm border border-gray-100 text-gray-900 py-3 px-4 rounded-2xl outline-none font-semibold text-sm appearance-none"></select>
+            </div>
+
+            <div class="bg-black text-white rounded-3xl p-6 shadow-lg mb-6">
+                <p class="text-sm text-gray-400 font-medium tracking-wide uppercase">Total Profit</p>
+                <h2 class="text-4xl font-bold mt-1 mb-4" id="total-profit">฿0</h2>
+                <div class="grid grid-cols-2 gap-4 border-t border-gray-800 pt-4 mt-4">
+                    <div>
+                        <p class="text-[10px] text-gray-500 uppercase tracking-wider">Total Investment</p>
+                        <p class="font-semibold text-white" id="total-investment">฿0</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[10px] text-gray-500 uppercase tracking-wider">Revenue</p>
+                        <p class="font-semibold text-green-400" id="total-revenue">฿0</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 mb-6 hidden" id="chart-container">
+                <canvas id="profitChart" style="max-height: 220px;"></canvas>
+            </div>
+
+            <div id="channel-breakdown" class="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 mb-8 hidden">
+                <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">สรุปยอดตามช่องทางขาย</h4>
+                <div id="channel-breakdown-list" class="space-y-2"></div>
+            </div>
+
+            <h3 class="text-lg font-semibold mb-3 tracking-tight flex justify-between items-end">
+                Sales History
+                <span id="sales-count-badge" class="text-xs font-normal text-gray-400">0 items</span>
+            </h3>
+
+            <div class="relative mb-4">
+                <span class="absolute left-3 top-2.5 text-gray-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </span>
+                <input type="search" id="search-sales" oninput="handleSearch()" placeholder="ค้นหาการ์ด, ลูกค้า, เกม..." class="w-full bg-white shadow-sm border border-gray-100 rounded-xl pl-9 pr-4 py-2 text-sm focus:ring-2 focus:ring-black outline-none appearance-none transition-all">
+            </div>
+
+            <div id="sold-list" class="space-y-2"></div>
+
+            <div class="mt-8 border-t border-gray-200 pt-6">
+                <h3 class="text-xs font-semibold text-gray-400 mb-4 uppercase tracking-widest text-center">Data Management</h3>
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <button onclick="exportToExcel()" class="bg-white shadow-sm border border-gray-100 text-sm font-medium py-3 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 cursor-pointer">↑ Export Excel</button>
+                    <label class="bg-white shadow-sm border border-gray-100 text-sm font-medium py-3 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 cursor-pointer">
+                        ↓ Import Excel <input type="file" id="import-file" class="hidden" accept=".xlsx, .xls" onchange="importFromExcel(event)">
+                    </label>
+                </div>
+                <button onclick="clearAllData()" 
+        class="w-full bg-red-50 text-red-500 text-sm font-medium py-3 rounded-xl 
+               active:scale-95 transition-transform border border-red-100 
+               flex items-center justify-center gap-2 cursor-pointer relative z-20">
+    ⚠️ Clear All Data</button>
+            </div>
+        </section>
+
+        <section id="tab-inventory" class="tab-content">
+            <h3 class="text-lg font-semibold mb-1 tracking-tight flex justify-between items-end">
+                <span>In Stock (<span id="stock-count">0</span>)</span>
+                <span class="text-sm font-medium text-gray-500" id="stock-value">Value: ฿0</span>
+            </h3>
+            <p id="reserved-count-line" class="text-xs font-medium text-amber-600 mb-4 hidden">🕒 จองแล้ว <span id="reserved-count">0</span> รายการ</p>
+            <div id="inventory-list" class="space-y-3 mt-4"></div>
+        </section>
+
+        <section id="tab-add" class="tab-content">
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <form id="add-form" onsubmit="addCard(event)" novalidate>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">IMAGE URL (ลิงก์รูปภาพ)</label>
+                        <input type="url" id="card-image" placeholder="https://..." class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-black outline-none transition-all">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">CARD GAME</label>
+                        <select id="card-game" onchange="updateRarityOptions()" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-black outline-none appearance-none" required>
+                            <option value="onepiece">One Piece Card Game</option>
+                            <option value="pokemon">Pokémon TCG</option>
+                            <option value="lorcana">Disney Lorcana</option>
+                            <option value="talingchan">Battle of Talingchan</option>
+                            <option value="dragonball">Dragon Ball Super FW</option>
+                            <option value="naruto">Kayou Naruto</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">CARD NAME / CODE</label>
+                        <input type="text" id="card-name" placeholder="e.g. OP01-024, Elsa..." class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-black outline-none transition-all" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">RARITY</label>
+                        <select id="card-rarity" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-black outline-none appearance-none" required></select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">CONDITION (สภาพการ์ด)</label>
+                        <select id="card-condition" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-black outline-none appearance-none"></select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">BUY PRICE (ต้นทุน/ใบ)</label>
+                            <div class="relative">
+                                <span class="absolute left-4 top-3 text-gray-400 text-lg">฿</span>
+                                <input type="number" id="card-cost" class="w-full bg-gray-50 border-0 rounded-xl pl-10 pr-4 py-3 text-lg focus:ring-2 focus:ring-black outline-none transition-all" required>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">QTY (จำนวน)</label>
+                            <input type="number" id="card-quantity" value="1" min="1" step="1" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-black outline-none transition-all" required>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-gray-400 -mt-2 mb-4 px-1">💡 ถ้าได้การ์ดใบเดียวกันมาหลายใบ (เช่น แกะกล่องได้ 3 ใบ) ใส่จำนวนได้เลย ระบบจะแยกเป็นรายการแยกให้อัตโนมัติ</p>
+                    <div class="mb-8 mt-2">
+                        <label class="flex items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100 cursor-pointer active:scale-[0.98] transition-transform">
+                            <input type="checkbox" id="card-collection" class="w-5 h-5 text-black border-gray-300 rounded focus:ring-black accent-black pointer-events-none">
+                            <span class="text-sm font-semibold text-gray-700 pointer-events-none">🔒 ซื้อเก็บสะสม (Not for Sale)</span>
+                        </label>
+                    </div>
+                    <button type="submit" class="w-full bg-black text-white font-medium text-lg py-4 rounded-2xl active:scale-95 transition-transform shadow-md cursor-pointer">Add to Inventory</button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <nav class="fixed bottom-0 z-40 w-full bg-white/90 backdrop-blur-md border-t border-gray-100 safe-bottom">
+        <div class="flex justify-around items-center px-2 py-2">
+            <button onclick="switchTab('dashboard')" class="nav-btn p-3 text-black flex flex-col items-center cursor-pointer" data-tab="dashboard">
+                <svg class="w-6 h-6 mb-1 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path></svg>
+                <span class="text-[10px] font-medium tracking-wide pointer-events-none">Overview</span>
+            </button>
+            <button onclick="switchTab('add')" class="nav-btn p-3 text-gray-400 flex flex-col items-center relative -top-4 cursor-pointer" data-tab="add">
+                <div class="bg-black text-white p-4 rounded-full shadow-lg pointer-events-none">
+                    <svg class="w-6 h-6 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                </div>
+            </button>
+            <button onclick="switchTab('inventory')" class="nav-btn p-3 text-gray-400 flex flex-col items-center cursor-pointer" data-tab="inventory">
+                <svg class="w-6 h-6 mb-1 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                <span class="text-[10px] font-medium tracking-wide pointer-events-none">Stock</span>
+            </button>
+        </div>
+    </nav>
+
+    <div id="edit-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl scale-100 transition-transform max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-semibold mb-4">Edit Item</h3>
+            <input type="hidden" id="edit-item-id">
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">IMAGE URL</label>
+                <input type="url" id="edit-image" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-black outline-none">
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">CARD GAME</label>
+                <select id="edit-game" onchange="updateEditRarityOptions()" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-black outline-none appearance-none">
+                    <option value="onepiece">One Piece Card Game</option>
+                    <option value="pokemon">Pokémon TCG</option>
+                    <option value="lorcana">Disney Lorcana</option>
+                    <option value="talingchan">Battle of Talingchan</option>
+                    <option value="dragonball">Dragon Ball Super FW</option>
+                    <option value="naruto">Kayou Naruto</option>
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">CARD NAME</label>
+                <input type="text" id="edit-name" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-black outline-none" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">RARITY</label>
+                <select id="edit-rarity" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-black outline-none appearance-none"></select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">CONDITION (สภาพการ์ด)</label>
+                <select id="edit-condition" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-black outline-none appearance-none"></select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">BUY PRICE (ต้นทุน)</label>
+                <div class="relative">
+                    <span class="absolute left-4 top-2.5 text-gray-400">฿</span>
+                    <input type="number" id="edit-cost" class="w-full bg-gray-50 border-0 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-black outline-none" required>
+                </div>
+            </div>
+            <div id="edit-sell-wrapper" class="mb-4 hidden">
+                <div class="mb-4 border-t border-gray-100 pt-4">
+                    <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">SELLING PRICE (ราคาที่ขายไป)</label>
+                    <div class="relative">
+                        <span class="absolute left-4 top-2.5 text-gray-400">฿</span>
+                        <input type="number" id="edit-sell-price" class="w-full bg-gray-50 border-0 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-black outline-none">
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">FEES + SHIPPING (ค่าธรรมเนียม/ค่าส่งที่จ่าย)</label>
+                    <div class="relative">
+                        <span class="absolute left-4 top-2.5 text-gray-400">฿</span>
+                        <input type="number" id="edit-sell-fees" placeholder="0" class="w-full bg-gray-50 border-0 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-black outline-none">
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">SALES CHANNEL (ช่องทางขาย)</label>
+                    <select id="edit-sell-channel" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-black outline-none appearance-none"></select>
+                </div>
+                <div class="mb-4 date-wrapper">
+                    <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">SALE DATE (วันที่ขาย)</label>
+                    <input type="date" id="edit-sell-date" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-black outline-none appearance-none">
+                </div>
+                <div class="mb-2">
+                    <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">CUSTOMER (ชื่อลูกค้า)</label>
+                    <input type="text" id="edit-sell-customer" placeholder="เช่น คุณเอ, FB: ..." class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-black outline-none">
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeEditModal()" class="flex-1 bg-gray-100 text-black font-medium py-3 rounded-xl cursor-pointer">Cancel</button>
+                <button onclick="saveEdit()" class="flex-1 bg-black text-white font-medium py-3 rounded-xl cursor-pointer">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="sell-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl scale-100 transition-transform max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-semibold mb-2">Sell Item</h3>
+            <p id="sell-item-name" class="text-sm text-gray-500 mb-6"></p>
+            <input type="hidden" id="sell-item-id">
+            
+            <div class="mb-4 date-wrapper">
+                <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">SALE DATE (วันที่ขาย)</label>
+                <input type="date" id="sell-date" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-black outline-none appearance-none" required>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">SELLING PRICE (ราคาที่ขายได้)</label>
+                <div class="relative">
+                    <span class="absolute left-4 top-3 text-gray-400 text-lg">฿</span>
+                    <input type="number" id="sell-price" class="w-full bg-gray-50 border-0 rounded-xl pl-10 pr-4 py-3 text-lg focus:ring-2 focus:ring-black outline-none" required>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">FEES + SHIPPING (ค่าธรรมเนียม/ค่าส่งที่จ่าย - <span class="text-gray-400 font-normal">เว้นว่างได้</span>)</label>
+                <div class="relative">
+                    <span class="absolute left-4 top-3 text-gray-400 text-lg">฿</span>
+                    <input type="number" id="sell-fees" placeholder="0" class="w-full bg-gray-50 border-0 rounded-xl pl-10 pr-4 py-3 text-lg focus:ring-2 focus:ring-black outline-none">
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">SALES CHANNEL (ช่องทางขาย)</label>
+                <select id="sell-channel" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-black outline-none appearance-none"></select>
+            </div>
+
+            <div class="mb-8">
+                <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">CUSTOMER (ชื่อลูกค้า - <span class="text-gray-400 font-normal">เว้นว่างได้</span>)</label>
+                <input type="text" id="sell-customer" placeholder="เช่น คุณเอ, FB: บอย..." class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-black outline-none">
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="closeSellModal()" class="flex-1 bg-gray-100 text-black font-medium py-3 rounded-xl cursor-pointer">Cancel</button>
+                <button onclick="confirmSell()" class="flex-1 bg-black text-white font-medium py-3 rounded-xl cursor-pointer">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="reserve-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl scale-100 transition-transform max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-semibold mb-2">🕒 จองการ์ด</h3>
+            <p id="reserve-item-name" class="text-sm text-gray-500 mb-6"></p>
+            <input type="hidden" id="reserve-item-id">
+
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">CUSTOMER (จองให้ใคร)</label>
+                <input type="text" id="reserve-customer" placeholder="เช่น คุณเอ, FB: บอย..." class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-black outline-none" required>
+            </div>
+
+            <div class="mb-8 date-wrapper">
+                <label class="block text-xs font-semibold text-gray-500 tracking-wide mb-1">RESERVE DATE (วันที่จอง)</label>
+                <input type="date" id="reserve-date" class="w-full bg-gray-50 border-0 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-black outline-none appearance-none">
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="closeReserveModal()" class="flex-1 bg-gray-100 text-black font-medium py-3 rounded-xl cursor-pointer">Cancel</button>
+                <button onclick="confirmReserve()" class="flex-1 bg-black text-white font-medium py-3 rounded-xl cursor-pointer">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let inventory = JSON.parse(localStorage.getItem('card_inventory')) || [];
+        let profitChartInstance = null;
+        let currentMonthView = null;
+        let currentSearchQuery = "";
+
+        const gameIcons = {
+            onepiece: '🏴‍☠️', 
+            pokemon: '🗲', 
+            lorcana: '✨', 
+            talingchan: '⚔️', 
+            dragonball: '🐉', 
+            naruto: '🥷'
+        };
+
+        const rarityData = {
+            onepiece: [{ val: 'C', label: 'Common (C)' }, { val: 'UC', label: 'Uncommon (UC)' }, { val: 'R', label: 'Rare (R)' }, { val: 'SR', label: 'Super Rare (SR)' }, { val: 'SEC', label: 'Secret Rare (SEC)' }, { val: 'L', label: 'Leader (L)' }, { val: 'AA', label: 'Alternate Art (AA)' }, { val: 'SP', label: 'Special (SP)' }, { val: 'PR', label: 'Promo (PR)' }],
+            pokemon: [{ val: 'C', label: 'Common (C)' }, { val: 'U', label: 'Uncommon (U)' }, { val: 'R', label: 'Rare (R)' }, { val: 'RR', label: 'Double Rare (RR)' }, { val: 'RRR', label: 'Triple Rare (RRR)' }, { val: 'AR', label: 'Art Rare (AR)' }, { val: 'SR', label: 'Super Rare (SR)' }, { val: 'SAR', label: 'Special Art Rare (SAR)' }, { val: 'UR', label: 'Ultra Rare (UR)' }, { val: 'CHR', label: 'Character Rare (CHR)' }, { val: 'CSR', label: 'Character Super Rare (CSR)' }],
+            lorcana: [{ val: 'C', label: 'Common (C)' }, { val: 'U', label: 'Uncommon (U)' }, { val: 'R', label: 'Rare (R)' }, { val: 'SR', label: 'Super Rare (SR)' }, { val: 'L', label: 'Legendary (L)' }, { val: 'E', label: 'Enchanted (E)' }, { val: 'P', label: 'Promo (P)' }],
+            talingchan: [{ val: 'C', label: 'Common (C)' }, { val: 'U', label: 'Uncommon (U)' }, { val: 'R', label: 'Rare (R)' }, { val: 'SR', label: 'Super Rare (SR)' }, { val: 'UR', label: 'Ultra Rare (UR)' }, { val: 'SEC', label: 'Secret Rare (SEC)' }, { val: 'PPR', label: 'Paper Rare (PPR)' }, { val: 'PR', label: 'Promo (PR)' }],
+            dragonball: [{ val: 'C', label: 'Common (C)' }, { val: 'UC', label: 'Uncommon (UC)' }, { val: 'R', label: 'Rare (R)' }, { val: 'SR', label: 'Super Rare (SR)' }, { val: 'SCR', label: 'Secret Rare (SCR)' }, { val: 'L', label: 'Leader (L)' }, { val: 'AA', label: 'Alternate Art (AA)' }],
+            naruto: [{ val: 'R', label: 'Rare (R)' }, { val: 'SR', label: 'Super Rare (SR)' }, { val: 'SSR', label: 'Super Super Rare (SSR)' }, { val: 'UR', label: 'Ultra Rare (UR)' }, { val: 'OR', label: 'Original/Over Rare (OR)' }, { val: 'AR', label: 'Art Rare (AR)' }, { val: 'SP', label: 'Special (SP)' }, { val: 'MR', label: 'Mega Rare (MR)' }, { val: 'PTR', label: 'Poster Rare (PTR)' }, { val: 'CR', label: 'Color Rare (CR)' }, { val: 'NR', label: 'Ninja Rare (NR)' }, { val: 'BP', label: 'Battle Point (BP)' }]
+        };
+
+        const gameNames = { onepiece: 'One Piece', pokemon: 'Pokémon', lorcana: 'Disney Lorcana', talingchan: 'Talingchan', dragonball: 'Dragon Ball FW', naruto: 'Kayou Naruto' };
+
+        // --- สภาพการ์ด และ ช่องทางการขาย ---
+        const conditionOptions = [
+            { val: 'NM', label: 'Near Mint (NM)' },
+            { val: 'LP', label: 'Lightly Played (LP)' },
+            { val: 'MP', label: 'Moderately Played (MP)' },
+            { val: 'HP', label: 'Heavily Played (HP)' },
+            { val: 'DMG', label: 'Damaged (DMG)' }
+        ];
+        const channelOptions = ['Facebook', 'Shopee', 'Lazada', 'Line', 'นัดเจอ/รับหน้าร้าน', 'งานอีเวนต์', 'อื่นๆ'];
+
+        function populateStaticDropdowns() {
+            const conditionHTML = conditionOptions.map(c => `<option value="${c.val}">${c.label}</option>`).join('');
+            document.getElementById('card-condition').innerHTML = conditionHTML;
+            document.getElementById('edit-condition').innerHTML = conditionHTML;
+
+            const channelHTML = `<option value="">— เลือกช่องทาง (ไม่บังคับ) —</option>` + channelOptions.map(c => `<option value="${c}">${c}</option>`).join('');
+            document.getElementById('sell-channel').innerHTML = channelHTML;
+            document.getElementById('edit-sell-channel').innerHTML = channelHTML;
+        }
+
+        function renderGameLabel(gameKey) {
+            const label = gameNames[gameKey] || 'Card Game';
+            const icon = gameIcons[gameKey] || '';
+            if (icon.startsWith('http') || icon.startsWith('data:')) {
+                return `<img src="${icon}" class="inline-block w-3 h-3 mr-1 mb-0.5 object-contain" alt="icon">${label}`;
+            }
+            return `<span class="mr-0.5">${icon}</span>${label}`;
+        }
+
+        function getYYYYMM(dateString) {
+            if (!dateString) return '';
+            const d = new Date(dateString);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }
+        function getLocalYYYYMMDD() {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        function updateRarityOptions() {
+            const game = document.getElementById('card-game').value;
+            document.getElementById('card-rarity').innerHTML = rarityData[game].map(r => `<option value="${r.val}">${r.label}</option>`).join('');
+        }
+
+        function updateEditRarityOptions(presetRarity = null) {
+            const game = document.getElementById('edit-game').value;
+            const select = document.getElementById('edit-rarity');
+            select.innerHTML = rarityData[game].map(r => `<option value="${r.val}">${r.label}</option>`).join('');
+            if(presetRarity) select.value = presetRarity;
+        }
+
+        function saveDb() { localStorage.setItem('card_inventory', JSON.stringify(inventory)); updateUI(); }
+        function formatMoney(amount) { return '฿' + amount.toLocaleString('en-US'); }
+        function netProfit(item) { return (item.sellPrice || 0) - (item.cost || 0) - (item.fees || 0); }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => { el.classList.remove('text-black'); el.classList.add('text-gray-400'); });
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            
+            const titles = { 'dashboard': 'Overview', 'add': 'Add New Card', 'inventory': 'Inventory' };
+            document.getElementById('header-title').innerText = titles[tabName];
+            
+            if(tabName !== 'add') {
+                document.querySelector(`[data-tab="${tabName}"]`).classList.add('text-black');
+                document.querySelector(`[data-tab="${tabName}"]`).classList.remove('text-gray-400');
+            }
+        }
+
+        function changeMonthFilter() { currentMonthView = document.getElementById('month-filter').value; updateUI(); }
+        function handleSearch() { currentSearchQuery = document.getElementById('search-sales').value.toLowerCase().trim(); updateUI(); }
+
+        // --- เพิ่ม/นำเข้า ฟังก์ชัน ClearAllData กลับมาแล้ว ---
+        function clearAllData() {
+            if(inventory.length === 0) return alert('ไม่มีข้อมูลให้ลบครับ');
+            if(confirm('⚠️ คำเตือน: คุณแน่ใจหรือไม่ว่าต้องการ "ลบข้อมูลทั้งหมด"?\n(แนะนำให้กด Export เก็บไว้ก่อน)')) {
+                if(confirm('ยืนยันอีกครั้ง ข้อมูลที่ลบแล้วจะไม่สามารถกู้คืนได้?')) { 
+                    inventory = []; 
+                    saveDb(); 
+                    alert('ลบข้อมูลทั้งหมดเรียบร้อยแล้ว');
+                }
+            }
+        }
+
+        function addCard(e) {
+            e.preventDefault();
+            try {
+                const name = document.getElementById('card-name').value.trim();
+                const costRaw = document.getElementById('card-cost').value;
+                const cost = parseFloat(costRaw);
+                const quantity = Math.max(1, parseInt(document.getElementById('card-quantity').value) || 1);
+
+                if (!name) { alert('กรุณากรอกชื่อการ์ด / โค้ดการ์ดก่อนครับ'); document.getElementById('card-name').focus(); return; }
+                if (costRaw === '' || isNaN(cost) || cost < 0) { alert('กรุณากรอกราคาต้นทุน (Buy Price) เป็นตัวเลขที่ถูกต้องก่อนครับ'); document.getElementById('card-cost').focus(); return; }
+
+                const base = {
+                    imageUrl: document.getElementById('card-image').value,
+                    game: document.getElementById('card-game').value,
+                    name: name,
+                    rarity: document.getElementById('card-rarity').value,
+                    condition: document.getElementById('card-condition').value,
+                    cost: cost,
+                    status: 'stock',
+                    isCollection: document.getElementById('card-collection').checked,
+                    sellPrice: null,
+                    dateAdded: new Date().toISOString()
+                };
+                for (let i = 0; i < quantity; i++) {
+                    inventory.push({ ...base, id: Date.now() + i });
+                }
+                saveDb();
+                document.getElementById('add-form').reset();
+                updateRarityOptions();
+                document.getElementById('card-quantity').value = 1;
+                switchTab('inventory');
+            } catch (err) {
+                console.error('เพิ่มการ์ดไม่สำเร็จ:', err);
+                alert('เกิดข้อผิดพลาดในการเพิ่มการ์ด กรุณาลองใหม่อีกครั้ง (' + err.message + ')');
+            }
+        }
+
+        // --- อัปเดตฟังก์ชัน Toggle Lock/Unlock ให้สลับไปมาได้ ---
+        function toggleCollection(id) {
+            const index = inventory.findIndex(i => i.id === id);
+            const item = inventory[index];
+            if(item.isCollection) {
+                if(confirm('คุณต้องการ "ปลดล็อค" การ์ดใบนี้เพื่อนำไปขาย ใช่หรือไม่?')) {
+                    inventory[index].isCollection = false; 
+                    saveDb();
+                }
+            } else {
+                if(confirm('คุณต้องการ "ล็อค" การ์ดใบนี้เก็บเข้าคอลเลกชัน (ป้องกันการขาย) ใช่หรือไม่?')) {
+                    inventory[index].isCollection = true; 
+                    saveDb();
+                }
+            }
+        }
+
+        function openSellModal(id) {
+            const item = inventory.find(i => i.id === id);
+            document.getElementById('sell-item-id').value = id;
+            document.getElementById('sell-item-name').innerText = `${item.name} (${item.rarity})`;
+            document.getElementById('sell-date').value = getLocalYYYYMMDD();
+            document.getElementById('sell-customer').value = item.status === 'reserved' ? (item.customer || '') : '';
+            document.getElementById('sell-fees').value = '';
+            document.getElementById('sell-channel').value = '';
+            document.getElementById('sell-modal').classList.remove('hidden');
+        }
+
+        function closeSellModal() { document.getElementById('sell-modal').classList.add('hidden'); document.getElementById('sell-price').value = ''; }
+
+        function confirmSell() {
+            const id = parseInt(document.getElementById('sell-item-id').value);
+            const price = parseFloat(document.getElementById('sell-price').value);
+            const inputDate = document.getElementById('sell-date').value;
+            const inputCustomer = document.getElementById('sell-customer').value.trim();
+            const inputFees = parseFloat(document.getElementById('sell-fees').value) || 0;
+            const inputChannel = document.getElementById('sell-channel').value || null;
+
+            if(isNaN(price) || price <= 0) return alert('กรุณาระบุราคาขายที่ถูกต้อง');
+
+            const index = inventory.findIndex(i => i.id === id);
+            inventory[index].status = 'sold';
+            inventory[index].sellPrice = price;
+            inventory[index].fees = inputFees;
+            inventory[index].channel = inputChannel;
+            inventory[index].dateSold = inputDate ? new Date(inputDate).toISOString() : new Date().toISOString();
+            inventory[index].customer = inputCustomer || null;
+            inventory[index].dateReserved = null;
+
+            currentMonthView = getYYYYMM(inventory[index].dateSold);
+            saveDb(); closeSellModal(); switchTab('dashboard');
+        }
+
+        // --- ฟีเจอร์ "จอง" การ์ด: กันของไว้ให้ลูกค้าก่อนตัดสินใจซื้อจริง ---
+        function openReserveModal(id) {
+            const item = inventory.find(i => i.id === id);
+            document.getElementById('reserve-item-id').value = id;
+            document.getElementById('reserve-item-name').innerText = `${item.name} (${item.rarity})`;
+            document.getElementById('reserve-customer').value = '';
+            document.getElementById('reserve-date').value = getLocalYYYYMMDD();
+            document.getElementById('reserve-modal').classList.remove('hidden');
+        }
+        function closeReserveModal() { document.getElementById('reserve-modal').classList.add('hidden'); }
+
+        function confirmReserve() {
+            const id = parseInt(document.getElementById('reserve-item-id').value);
+            const customer = document.getElementById('reserve-customer').value.trim();
+            const date = document.getElementById('reserve-date').value;
+            if (!customer) return alert('กรุณาระบุชื่อลูกค้าที่จองครับ');
+
+            const index = inventory.findIndex(i => i.id === id);
+            inventory[index].status = 'reserved';
+            inventory[index].customer = customer;
+            inventory[index].dateReserved = date ? new Date(date).toISOString() : new Date().toISOString();
+            saveDb(); closeReserveModal();
+        }
+
+        function cancelReservation(id) {
+            if(confirm('ยกเลิกการจอง และย้ายการ์ดใบนี้กลับไปเป็น "In Stock" ใช่หรือไม่?')) {
+                const index = inventory.findIndex(i => i.id === id);
+                inventory[index].status = 'stock';
+                inventory[index].customer = null;
+                inventory[index].dateReserved = null;
+                saveDb();
+            }
+        }
+
+        function deleteItem(id) {
+            if(confirm('ต้องการ "ลบ" รายการนี้ออกจากระบบใช่หรือไม่?')) {
+                inventory = inventory.filter(i => i.id !== id); saveDb();
+            }
+        }
+
+        function openEditModal(id) {
+            const item = inventory.find(i => i.id === id);
+            document.getElementById('edit-item-id').value = id;
+            document.getElementById('edit-image').value = item.imageUrl || '';
+            document.getElementById('edit-game').value = item.game || 'onepiece';
+            updateEditRarityOptions(item.rarity);
+            document.getElementById('edit-name').value = item.name;
+            document.getElementById('edit-condition').value = item.condition || 'NM';
+            document.getElementById('edit-cost').value = item.cost;
+            
+            const sellWrapper = document.getElementById('edit-sell-wrapper');
+            if (item.status === 'sold') {
+                sellWrapper.classList.remove('hidden');
+                document.getElementById('edit-sell-price').value = item.sellPrice;
+                document.getElementById('edit-sell-fees').value = item.fees || '';
+                document.getElementById('edit-sell-channel').value = item.channel || '';
+                document.getElementById('edit-sell-date').value = item.dateSold ? item.dateSold.split('T')[0] : '';
+                document.getElementById('edit-sell-customer').value = item.customer || '';
+            } else { sellWrapper.classList.add('hidden'); }
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+        
+        function closeEditModal() { document.getElementById('edit-modal').classList.add('hidden'); }
+        
+        function saveEdit() {
+            const id = parseInt(document.getElementById('edit-item-id').value);
+            const index = inventory.findIndex(i => i.id === id);
+            
+            inventory[index].imageUrl = document.getElementById('edit-image').value;
+            inventory[index].game = document.getElementById('edit-game').value;
+            inventory[index].name = document.getElementById('edit-name').value;
+            inventory[index].rarity = document.getElementById('edit-rarity').value;
+            inventory[index].condition = document.getElementById('edit-condition').value;
+            inventory[index].cost = parseFloat(document.getElementById('edit-cost').value);
+            
+            if (inventory[index].status === 'sold') {
+                inventory[index].sellPrice = parseFloat(document.getElementById('edit-sell-price').value);
+                inventory[index].fees = parseFloat(document.getElementById('edit-sell-fees').value) || 0;
+                inventory[index].channel = document.getElementById('edit-sell-channel').value || null;
+                const editDate = document.getElementById('edit-sell-date').value;
+                if(editDate) inventory[index].dateSold = new Date(editDate).toISOString();
+                const editCus = document.getElementById('edit-sell-customer').value.trim();
+                inventory[index].customer = editCus || null;
+                
+                currentMonthView = getYYYYMM(inventory[index].dateSold);
+            }
+            saveDb(); closeEditModal();
+        }
+
+        function exportToExcel() {
+            if(inventory.length === 0) return alert('ยังไม่มีข้อมูลให้ส่งออกครับ');
+            const excelData = inventory.map(item => ({
+                'ID': item.id,
+                'Game': gameNames[item.game] || item.game,
+                'Card Name': item.name,
+                'Rarity': item.rarity,
+                'Condition': item.condition || 'NM',
+                'Buy Price (Cost)': item.cost,
+                'Status': item.status === 'stock' ? 'In Stock' : (item.status === 'reserved' ? 'Reserved' : 'Sold'),
+                'Is Collection': item.isCollection ? 'Yes' : 'No',
+                'Sell Price': item.sellPrice || 0,
+                'Fees/Shipping': item.fees || 0,
+                'Sales Channel': item.channel || '',
+                'Customer Name': item.customer || '',
+                'Image URL': item.imageUrl || '',
+                'Date Added': item.dateAdded ? item.dateAdded.split('T')[0] : '',
+                'Date Reserved': item.dateReserved ? item.dateReserved.split('T')[0] : '',
+                'Date Sold': item.dateSold ? item.dateSold.split('T')[0] : ''
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(excelData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Card Inventory");
+            XLSX.writeFile(workbook, `CardVault_Backup_${new Date().toISOString().split('T')[0]}.xlsx`);
+        }
+
+        function importFromExcel(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const excelData = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    if (excelData.length === 0) return alert('ไม่พบข้อมูลในไฟล์ Excel');
+
+                    const reverseGameNames = {};
+                    Object.keys(gameNames).forEach(k => reverseGameNames[gameNames[k].toLowerCase()] = k);
+
+                    const imported = excelData.map(row => {
+                        const gameInput = (row['Game'] || '').toString().toLowerCase().trim();
+                        const gameKey = reverseGameNames[gameInput] || Object.keys(gameNames).find(k => k.toLowerCase() === gameInput) || 'onepiece';
+                        const statusInput = (row['Status'] || '').toString().trim();
+                        const status = statusInput === 'Sold' ? 'sold' : (statusInput === 'Reserved' ? 'reserved' : 'stock');
+                        
+                        return {
+                            id: row['ID'] ? parseInt(row['ID']) : Date.now() + Math.floor(Math.random() * 1000),
+                            imageUrl: row['Image URL'] || '',
+                            game: gameKey,
+                            name: (row['Card Name'] || 'Unknown Card').toString(),
+                            rarity: (row['Rarity'] || 'C').toString(),
+                            condition: (row['Condition'] || 'NM').toString(),
+                            cost: row['Buy Price (Cost)'] ? parseFloat(row['Buy Price (Cost)']) : 0,
+                            status: status,
+                            isCollection: row['Is Collection'] === 'Yes',
+                            sellPrice: row['Sell Price'] ? parseFloat(row['Sell Price']) : null,
+                            fees: row['Fees/Shipping'] ? parseFloat(row['Fees/Shipping']) : 0,
+                            channel: row['Sales Channel'] || null,
+                            customer: row['Customer Name'] || null,
+                            dateAdded: row['Date Added'] ? new Date(row['Date Added']).toISOString() : new Date().toISOString(),
+                            dateReserved: row['Date Reserved'] ? new Date(row['Date Reserved']).toISOString() : null,
+                            dateSold: row['Date Sold'] ? new Date(row['Date Sold']).toISOString() : null
+                        };
+                    });
+
+                    if(confirm(`พบข้อมูลการ์ดใน Excel ทั้งหมด ${imported.length} รายการ ต้องการเซฟเขียนทับข้อมูลในเครื่องหรือไม่?`)) {
+                        inventory = imported;
+                        saveDb();
+                        alert('กู้คืนและนำเข้าข้อมูลจาก Excel สำเร็จแล้วครับ!');
+                    }
+                } catch (err) {
+                    alert('โครงสร้างไฟล์ไม่ถูกต้อง ไม่สามารถอ่านข้อมูลสเปกตารางได้');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            event.target.value = '';
+        }
+
+        function renderProfitChart(items, viewMode) {
+            try {
+                if (typeof Chart === 'undefined') return;
+                const ctx = document.getElementById('profitChart').getContext('2d');
+                const chartContainer = document.getElementById('chart-container');
+                
+                if(items.length === 0) {
+                    chartContainer.classList.add('hidden');
+                    if (profitChartInstance) profitChartInstance.destroy();
+                    return;
+                }
+                chartContainer.classList.remove('hidden');
+
+                if (profitChartInstance) profitChartInstance.destroy();
+                
+                let labels = [];
+                let dataPoints = [];
+                let titleText = viewMode === 'all' ? 'Profit Trend (All Time)' : `Daily Profit: ${new Date(viewMode + '-01').toLocaleString('en-US', { month: 'long', year: 'numeric' })}`;
+                
+                if (viewMode === 'all') {
+                    const groups = {};
+                    items.forEach(i => { if(i.dateSold) { const m = getYYYYMM(i.dateSold); groups[m] = (groups[m] || 0) + netProfit(i); }});
+                    labels = Object.keys(groups).sort();
+                    dataPoints = labels.map(l => groups[l]);
+                    labels = labels.map(l => new Date(l + '-01').toLocaleString('en-US', { month: 'short' }));
+                } else {
+                    const groups = {};
+                    items.forEach(i => { if(i.dateSold) { const d = new Date(i.dateSold).getDate(); groups[d] = (groups[d] || 0) + netProfit(i); }});
+                    labels = Object.keys(groups).sort((a,b) => parseInt(a) - parseInt(b));
+                    dataPoints = labels.map(l => groups[l]);
+                }
+                
+                profitChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: dataPoints,
+                            backgroundColor: dataPoints.map(v => v >= 0 ? '#18181b' : '#a1a1aa'),
+                            borderRadius: 6,
+                            barThickness: 16
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        animation: { duration: 800 },
+                        plugins: {
+                            legend: { display: false },
+                            title: { display: true, text: titleText, font: { size: 12, weight: '600' }, color: '#6b7280', padding: { bottom: 15 } },
+                            tooltip: { backgroundColor: '#000', padding: 10, cornerRadius: 8, callbacks: { label: (context) => ' ฿' + context.raw.toLocaleString() } }
+                        },
+                        scales: {
+                            x: { 
+                                grid: { display: false }, 
+                                ticks: { font: { size: 10 }, color: '#9ca3af' },
+                                title: { display: true, text: viewMode === 'all' ? 'Month' : 'Day', font: { size: 10 }, color: '#d1d5db' }
+                            },
+                            y: { 
+                                grid: { color: '#f3f4f6', drawBorder: false }, 
+                                ticks: { font: { size: 10 }, color: '#9ca3af', callback: (value) => '฿' + value },
+                                title: { display: true, text: 'Profit (THB)', font: { size: 10 }, color: '#d1d5db' }
+                            }
+                        }
+                    }
+                });
+            } catch (err) { console.warn('กราฟมีปัญหา:', err); }
+        }
+
+        function renderChannelBreakdown(items) {
+            const container = document.getElementById('channel-breakdown');
+            const list = document.getElementById('channel-breakdown-list');
+            const withChannel = items.filter(i => i.channel);
+            if (withChannel.length === 0) { container.classList.add('hidden'); return; }
+
+            const groups = {};
+            withChannel.forEach(i => {
+                if (!groups[i.channel]) groups[i.channel] = { count: 0, profit: 0 };
+                groups[i.channel].count += 1;
+                groups[i.channel].profit += netProfit(i);
+            });
+
+            const rows = Object.keys(groups).sort((a, b) => groups[b].profit - groups[a].profit).map(ch => {
+                const g = groups[ch];
+                const positive = g.profit >= 0;
+                return `<div class="flex items-center justify-between text-xs">
+                    <span class="text-gray-600 font-medium">${ch} <span class="text-gray-400 font-normal">(${g.count})</span></span>
+                    <span class="font-semibold ${positive ? 'text-green-600' : 'text-red-500'}">${positive ? '+' : ''}${formatMoney(g.profit)}</span>
+                </div>`;
+            }).join('');
+
+            list.innerHTML = rows;
+            container.classList.remove('hidden');
+        }
+
+        function updateUI() {
+            try {
+                const stockItems = inventory.filter(i => i.status === 'stock');
+                const reservedItems = inventory.filter(i => i.status === 'reserved');
+                const allSoldItems = inventory.filter(i => i.status === 'sold');
+
+                const nowYYYYMM = getYYYYMM(new Date());
+                
+                // --- ตั้งค่า Default ให้เป็น 'all' (รวมทั้งหมด) ทันทีที่เปิดแอป ---
+                if (!currentMonthView) currentMonthView = 'all'; 
+
+                const monthsSet = new Set();
+                allSoldItems.forEach(i => { if(i.dateSold) monthsSet.add(getYYYYMM(i.dateSold)); });
+                monthsSet.add(nowYYYYMM); 
+                
+                const sortedMonths = Array.from(monthsSet).sort().reverse();
+                
+                const filterSelect = document.getElementById('month-filter');
+                let optionsHTML = `<option value="all">📊 All Time (สรุปยอดรวมทั้งหมด)</option>`;
+                sortedMonths.forEach(m => {
+                    const [y, mm] = m.split('-');
+                    const label = new Date(y, parseInt(mm)-1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+                    const isCurrent = (m === nowYYYYMM) ? ' (Current Month)' : '';
+                    optionsHTML += `<option value="${m}">${label}${isCurrent}</option>`;
+                });
+                filterSelect.innerHTML = optionsHTML;
+                filterSelect.value = currentMonthView;
+
+                let displaySoldItems = allSoldItems;
+                if (currentMonthView !== 'all') {
+                    displaySoldItems = allSoldItems.filter(i => i.dateSold && getYYYYMM(i.dateSold) === currentMonthView);
+                }
+                
+                displaySoldItems.sort((a, b) => new Date(b.dateSold || 0) - new Date(a.dateSold || 0));
+                stockItems.sort((a, b) => new Date(b.dateAdded || 0) - new Date(a.dateAdded || 0));
+                reservedItems.sort((a, b) => new Date(b.dateReserved || 0) - new Date(a.dateReserved || 0));
+
+                // --- อัปเดตยอดรวมมูลค่าของในสต็อค (รวมของที่จองไว้ด้วย เพราะยังเป็นทุนที่ยังไม่ได้คืน) ---
+                document.getElementById('stock-count').innerText = stockItems.length;
+                const stockValueTotal = stockItems.reduce((sum, item) => sum + item.cost, 0) + reservedItems.reduce((sum, item) => sum + item.cost, 0);
+                document.getElementById('stock-value').innerText = `Value: ${formatMoney(stockValueTotal)}`;
+
+                const reservedLine = document.getElementById('reserved-count-line');
+                if (reservedItems.length > 0) {
+                    document.getElementById('reserved-count').innerText = reservedItems.length;
+                    reservedLine.classList.remove('hidden');
+                } else { reservedLine.classList.add('hidden'); }
+
+                const totalInvestment = inventory.reduce((sum, item) => sum + item.cost, 0);
+                const totalRev = displaySoldItems.reduce((sum, item) => sum + item.sellPrice, 0);
+                const totalFees = displaySoldItems.reduce((sum, item) => sum + (item.fees || 0), 0);
+                const soldItemsCost = displaySoldItems.reduce((sum, item) => sum + item.cost, 0);
+                const totalProfit = totalRev - soldItemsCost - totalFees;
+
+                document.getElementById('total-investment').innerText = formatMoney(totalInvestment);
+                document.getElementById('total-revenue').innerText = formatMoney(totalRev);
+                document.getElementById('total-profit').innerText = formatMoney(totalProfit);
+                
+                if(totalProfit < 0) { document.getElementById('total-profit').classList.replace('text-white', 'text-red-400'); } 
+                else { document.getElementById('total-profit').classList.replace('text-red-400', 'text-white'); }
+
+                renderProfitChart(displaySoldItems, currentMonthView);
+                renderChannelBreakdown(displaySoldItems);
+
+                let listSoldItems = displaySoldItems;
+                if (currentSearchQuery) {
+                    listSoldItems = listSoldItems.filter(i => {
+                        const matchName = i.name.toLowerCase().includes(currentSearchQuery);
+                        const matchCust = i.customer && i.customer.toLowerCase().includes(currentSearchQuery);
+                        const matchGame = gameNames[i.game] && gameNames[i.game].toLowerCase().includes(currentSearchQuery);
+                        const matchRarity = i.rarity.toLowerCase().includes(currentSearchQuery);
+                        const matchChannel = i.channel && i.channel.toLowerCase().includes(currentSearchQuery);
+                        return matchName || matchCust || matchGame || matchRarity || matchChannel;
+                    });
+                }
+                
+                document.getElementById('sales-count-badge').innerText = `${listSoldItems.length} items`;
+
+                const editIcon = `<svg class="w-3.5 h-3.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>`;
+                const delIcon = `<svg class="w-3.5 h-3.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
+                const imagePlaceholder = `<div class="w-full h-full bg-gray-100 flex items-center justify-center text-gray-300"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>`;
+                const conditionTag = (item) => item.condition && item.condition !== 'NM' ? `<span class="text-gray-400 font-normal">・${item.condition}</span>` : '';
+
+                function createCardHTML(item, kind) {
+                    const gameLabelHTML = renderGameLabel(item.game);
+                    const hasImg = item.imageUrl && item.imageUrl.trim() !== '';
+                    const bgStyle = hasImg ? `background-image: url('${item.imageUrl}');` : '';
+                    const fallbackIcon = hasImg ? '' : imagePlaceholder;
+                    
+                    if(kind === 'sold') {
+                        const profit = netProfit(item);
+                        const isPositive = profit >= 0;
+                        const soldDateStr = item.dateSold ? new Date(item.dateSold).toLocaleDateString('en-US', { day:'numeric', month:'short', year:'2-digit' }) : '-';
+                        const customerTag = item.customer ? `<span class="text-indigo-500 font-medium tracking-tight">👤 ${item.customer}</span>` : '';
+                        const channelTag = item.channel ? `<span class="text-gray-400">📦 ${item.channel}</span>` : '';
+                        const feeNote = item.fees ? `<span class="text-[9px] text-gray-400"> (หัก fee ${formatMoney(item.fees)})</span>` : '';
+
+                        return `
+                        <div class="bg-white p-2.5 rounded-xl shadow-sm border border-gray-100 relative flex items-center gap-3 transition-colors hover:bg-gray-50">
+                            <div class="w-12 h-14 bg-gray-100 rounded-lg overflow-hidden shrink-0 shadow-inner flex items-center justify-center bg-cover bg-top" style="${bgStyle}">
+                                ${fallbackIcon}
+                            </div>
+                            <div class="flex-1 min-w-0 pr-10">
+                                <h4 class="font-bold text-xs text-gray-800 truncate leading-tight">${item.name} <span class="text-gray-400 font-normal text-[10px]">(${item.rarity})${conditionTag(item)}</span></h4>
+                                <div class="text-[10px] text-gray-500 truncate mt-0.5 flex items-center gap-1.5">
+                                    ${customerTag}${channelTag ? '<span class="text-gray-300">|</span>' + channelTag : ''}<span class="text-gray-300">|</span>${gameLabelHTML}
+                                </div>
+                                
+                                <div class="mt-1 flex items-center justify-between bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5">
+                                    <span class="text-[9px] text-gray-500">Cost: ${formatMoney(item.cost)}</span>
+                                    <span class="text-[9px] text-gray-700 font-medium">Sold: ${formatMoney(item.sellPrice)}${feeNote}</span>
+                                </div>
+                                
+                                <div class="mt-1 flex items-center justify-between">
+                                     <span class="text-[10px] text-gray-400">${soldDateStr}</span>
+                                     <span class="text-[11px] font-bold ${isPositive ? 'text-green-500' : 'text-red-500'}">${isPositive ? '+' : ''}${formatMoney(profit)}</span>
+                                </div>
+                            </div>
+                            <div class="absolute top-1.5 right-1.5 flex gap-0.5 z-10 bg-white/80 backdrop-blur-sm rounded-md">
+                                <button onclick="openEditModal(${item.id})" class="p-1 text-gray-400 hover:text-black cursor-pointer">${editIcon}</button>
+                                <button onclick="deleteItem(${item.id})" class="p-1 text-red-300 hover:text-red-500 cursor-pointer">${delIcon}</button>
+                            </div>
+                        </div>`;
+                    } else if (kind === 'reserved') {
+                        const reservedDateStr = item.dateReserved ? new Date(item.dateReserved).toLocaleDateString('en-US', { day:'numeric', month:'short' }) : '-';
+                        return `
+                        <div class="bg-amber-50/60 p-3 rounded-2xl shadow-sm border border-amber-100 relative flex items-center gap-3">
+                            <div class="absolute top-2 right-2 flex gap-1 z-10">
+                                <button onclick="openEditModal(${item.id})" class="p-1.5 text-gray-400 hover:text-black bg-white/80 backdrop-blur-sm rounded-lg cursor-pointer">${editIcon}</button>
+                                <button onclick="deleteItem(${item.id})" class="p-1.5 text-red-400 hover:text-white hover:bg-red-500 bg-red-50/80 backdrop-blur-sm rounded-lg cursor-pointer">${delIcon}</button>
+                            </div>
+                            <div class="w-16 h-20 bg-gray-100 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center bg-cover bg-top" style="${bgStyle}">
+                                ${fallbackIcon}
+                            </div>
+                            <div class="flex-1 min-w-0 py-1">
+                                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5 flex items-center">${gameLabelHTML}</p>
+                                <h4 class="font-semibold text-sm mb-1 truncate pr-14">${item.name} <span class="text-gray-400 text-xs">(${item.rarity})${conditionTag(item)}</span></h4>
+                                <p class="text-[10px] text-amber-700 font-semibold mb-0.5">🕒 จองให้ ${item.customer || 'ลูกค้า'} ・ ${reservedDateStr}</p>
+                                <p class="text-xs text-gray-500">Cost: ${formatMoney(item.cost)}</p>
+                            </div>
+                            <div class="shrink-0 text-right mt-6 flex flex-col items-end gap-1.5">
+                                <button onclick="cancelReservation(${item.id})" class="text-[9px] font-semibold text-gray-400 hover:text-black cursor-pointer transition-colors px-1">ยกเลิกจอง</button>
+                                <button onclick="openSellModal(${item.id})" class="bg-black text-white text-xs font-semibold px-4 py-2 rounded-xl active:scale-95 transition-transform cursor-pointer w-full text-center">ยืนยันขาย</button>
+                            </div>
+                        </div>`;
+                    } else {
+                        const collectionBadge = item.isCollection ? `<span class="bg-gray-800 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm block mb-1.5 w-max ml-auto">🔒 KEEP</span>` : '';
+                        
+                        // ปรับ UI ให้มีปุ่ม Lock / Unlock ตามสถานะปัจจุบัน
+                        const actionBtn = item.isCollection 
+                            ? `<div class="flex flex-col justify-end h-full"><button onclick="toggleCollection(${item.id})" class="text-[11px] font-semibold text-gray-500 bg-gray-100 px-3 py-2 rounded-xl active:scale-95 transition-transform cursor-pointer">🔓 Unlock</button></div>`
+                            : `<div class="flex flex-col items-end gap-1.5">
+                                   <button onclick="toggleCollection(${item.id})" class="text-[9px] font-semibold text-gray-400 hover:text-black cursor-pointer transition-colors px-1">🔒 Lock</button>
+                                   <button onclick="openReserveModal(${item.id})" class="text-[9px] font-semibold text-amber-500 hover:text-amber-700 cursor-pointer transition-colors px-1">🕒 จอง</button>
+                                   <button onclick="openSellModal(${item.id})" class="bg-black text-white text-xs font-semibold px-4 py-2 rounded-xl active:scale-95 transition-transform cursor-pointer w-full text-center">Sell</button>
+                               </div>`;
+                        
+                        return `
+                        <div class="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 relative flex items-center gap-3">
+                            <div class="absolute top-2 right-2 flex gap-1 z-10">
+                                <button onclick="openEditModal(${item.id})" class="p-1.5 text-gray-400 hover:text-black bg-white/80 backdrop-blur-sm rounded-lg cursor-pointer">${editIcon}</button>
+                                <button onclick="deleteItem(${item.id})" class="p-1.5 text-red-400 hover:text-white hover:bg-red-500 bg-red-50/80 backdrop-blur-sm rounded-lg cursor-pointer">${delIcon}</button>
+                            </div>
+                            <div class="w-16 h-20 bg-gray-100 rounded-xl overflow-hidden shrink-0 shadow-inner flex items-center justify-center bg-cover bg-top" style="${bgStyle}">
+                                ${fallbackIcon}
+                            </div>
+                            <div class="flex-1 min-w-0 py-1">
+                                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5 flex items-center">${gameLabelHTML}</p>
+                                <h4 class="font-semibold text-sm mb-1 truncate pr-14">${item.name} <span class="text-gray-400 text-xs">(${item.rarity})${conditionTag(item)}</span></h4>
+                                <p class="text-xs text-gray-500">Cost: ${formatMoney(item.cost)}</p>
+                            </div>
+                            <div class="shrink-0 text-right mt-6">${collectionBadge}${actionBtn}</div>
+                        </div>`;
+                    }
+                }
+
+                const availableForDisplay = [...reservedItems.map(i => ({ item: i, kind: 'reserved' })), ...stockItems.map(i => ({ item: i, kind: 'stock' }))];
+                document.getElementById('inventory-list').innerHTML = availableForDisplay.length ? availableForDisplay.map(x => createCardHTML(x.item, x.kind)).join('') : '<p class="text-gray-400 text-sm text-center py-6">ไม่มีการ์ดในสต็อค</p>';
+                document.getElementById('sold-list').innerHTML = listSoldItems.length ? listSoldItems.map(item => createCardHTML(item, 'sold')).join('') : '<p class="text-gray-400 text-sm text-center py-6">ไม่พบรายการที่ค้นหา</p>';
+
+            } catch (error) { console.error("เกิดข้อผิดพลาดในการโหลด UI:", error); }
+        }
+
+        populateStaticDropdowns();
+        updateRarityOptions(); updateUI();
+
+        // ================== PWA: เปิดแท็บตาม shortcut ที่กดมาจากหน้าจอโฮม ==================
+        (function openTabFromShortcut() {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            if (tab && ['dashboard', 'inventory', 'add'].includes(tab)) {
+                switchTab(tab);
+                window.history.replaceState({}, '', window.location.pathname);
+            }
+        })();
+
+        // ================== PWA: แบนเนอร์กลาง (ใช้ร่วมกันสำหรับ install / update / ios hint) ==================
+        const appBanner = document.getElementById('app-banner');
+        const appBannerText = document.getElementById('app-banner-text');
+        const appBannerAction = document.getElementById('app-banner-action');
+
+        function showAppBanner(text, actionLabel, onAction) {
+            appBannerText.innerText = text;
+            if (actionLabel) {
+                appBannerAction.innerText = actionLabel;
+                appBannerAction.classList.remove('hidden');
+                appBannerAction.onclick = onAction;
+            } else {
+                appBannerAction.classList.add('hidden');
+            }
+            appBanner.classList.remove('hidden');
+            appBanner.classList.add('flex');
+        }
+        function dismissAppBanner() {
+            appBanner.classList.add('hidden');
+            appBanner.classList.remove('flex');
+        }
+
+        // ================== PWA: ติดตั้ง Service Worker + แจ้งเตือนเมื่อมีอัปเดตใหม่ ==================
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').then((reg) => {
+                    reg.addEventListener('updatefound', () => {
+                        const newWorker = reg.installing;
+                        if (!newWorker) return;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                showAppBanner('มีเวอร์ชันใหม่ของแอปพร้อมใช้งานแล้ว', 'อัปเดตตอนนี้', () => {
+                                    newWorker.postMessage('SKIP_WAITING');
+                                });
+                            }
+                        });
+                    });
+                }).catch((err) => console.warn('ลงทะเบียน Service Worker ไม่สำเร็จ:', err));
+
+                let refreshedOnce = false;
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (refreshedOnce) return;
+                    refreshedOnce = true;
+                    window.location.reload();
+                });
+            });
+        }
+
+        // ================== PWA: ปุ่มติดตั้งแอป (Android / Desktop Chrome) ==================
+        let deferredInstallPrompt = null;
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            if (!isStandalone && !sessionStorage.getItem('installBannerDismissed')) {
+                showAppBanner('ติดตั้ง CardVault ไว้ที่หน้าจอโฮม เปิดใช้งานได้ไวขึ้นและใช้ออฟไลน์ได้', 'ติดตั้งแอป', async () => {
+                    dismissAppBanner();
+                    deferredInstallPrompt.prompt();
+                    await deferredInstallPrompt.userChoice;
+                    deferredInstallPrompt = null;
+                });
+            }
+        });
+
+        window.addEventListener('appinstalled', () => {
+            dismissAppBanner();
+            deferredInstallPrompt = null;
+        });
+
+        // ================== PWA: คำแนะนำติดตั้งสำหรับ iOS Safari (ไม่รองรับ beforeinstallprompt) ==================
+        (function iosInstallHint() {
+            const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+            const isSafari = /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent);
+            if (isIOS && isSafari && !isStandalone && !localStorage.getItem('iosInstallHintDismissed')) {
+                setTimeout(() => {
+                    showAppBanner('เพิ่ม CardVault ไว้ที่หน้าจอโฮม: แตะไอคอนแชร์ (กรอบสี่เหลี่ยมมีลูกศรชี้ขึ้น) ด้านล่าง แล้วเลือก "เพิ่มไปยังหน้าจอโฮม"', null, null);
+                }, 1500);
+            }
+        })();
+
+        const originalDismiss = dismissAppBanner;
+        dismissAppBanner = function () {
+            sessionStorage.setItem('installBannerDismissed', '1');
+            localStorage.setItem('iosInstallHintDismissed', '1');
+            originalDismiss();
+        };
+
+        // ================== PWA: แสดงสถานะออฟไลน์/ออนไลน์ ==================
+        const offlinePill = document.getElementById('offline-pill');
+        function updateOnlineStatus() {
+            offlinePill.classList.toggle('hidden', navigator.onLine);
+        }
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        updateOnlineStatus();
+    </script>
+</body>
+</html>
